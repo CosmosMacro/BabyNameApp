@@ -1,0 +1,7 @@
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+include ':@capgo_capacitor-social-login'
+project(':@capgo_capacitor-social-login').projectDir = new File('../node_modules/@capgo/capacitor-social-login/android')
+
+apply from: 'capacitor.settings.gradle'

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "76951829437",
+    "project_id": "babynameapp-cc1a5",
+    "storage_bucket": "babynameapp-cc1a5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76951829437:android:7d02e60d97a857121070d4",
+        "android_client_info": {
+          "package_name": "com.babyname.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "76951829437-im51i0duciamlddv5cp4scdqg5netn5s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.babyname.app",
+            "certificate_hash": "f5a87b1c0c548795c03d7b315a17e10ef54436a1"
+          }
+        },
+        {
+          "client_id": "76951829437-28dlmtm7m9hilthg3lvnrq0i9mffuece.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCI9f_BFQAsBiSKRzsjciCK8byQ_UtboE0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "76951829437-28dlmtm7m9hilthg3lvnrq0i9mffuece.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

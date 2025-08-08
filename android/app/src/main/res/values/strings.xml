@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BabyNameApp</string>
+    <string name="title_activity_main">BabyNameApp</string>
+    <string name="package_name">com.babyname.app</string>
+    <string name="custom_url_scheme">com.babyname.app</string>
+    <string name="server_client_id">199219615204-7urjhh17lfti8s68kleh2e4o9tvp5jkp.apps.googleusercontent.com</string>
+    <string name="facebook_app_id">VOTRE_FACEBOOK_APP_ID</string>
+</resources>
