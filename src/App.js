@@ -31,7 +31,7 @@ import { SocialLogin } from '@capgo/capacitor-social-login';
 
 // --- CONFIGURATION FIREBASE (REMPLIR AVEC VOS INFORMATIONS) ---
 const firebaseConfig = {
-    apiKey: "AIzaSyAyuyLAzFGAXgYNxLMoVIaBP1wSHIQe_ps",
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
     authDomain: "babynameapp-cc1a5.firebaseapp.com",
     projectId: "babynameapp-cc1a5",
     storageBucket: "babynameapp-cc1a5.firebasestorage.app",
