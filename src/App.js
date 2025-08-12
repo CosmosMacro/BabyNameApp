@@ -87,15 +87,50 @@ const AuthProvider = ({ children }) => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 const userRef = doc(db, 'users', firebaseUser.uid);
-                const userSnap = await getDoc(userRef);
+                const publicUserRef = doc(db, 'users_public', firebaseUser.uid);
+
+                const [userSnap, publicUserSnap] = await Promise.all([
+                    getDoc(userRef),
+                    getDoc(publicUserRef)
+                ]);
+
                 if (!userSnap.exists()) {
-                    await setDoc(userRef, {
+                    // Case for a brand new user
+                    const displayName = firebaseUser.displayName || firebaseUser.email.split('@')[0];
+                    const photoURL = firebaseUser.photoURL;
+
+                    const privateData = {
                         uid: firebaseUser.uid,
                         email: firebaseUser.email,
-                        displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-                        photoURL: firebaseUser.photoURL,
+                        displayName: displayName,
+                        photoURL: photoURL,
                         createdAt: new Date(),
-                    });
+                        lastName: '',
+                        likedNames: [],
+                        seenNames: [],
+                        history: [],
+                    };
+
+                    const publicData = {
+                        uid: firebaseUser.uid,
+                        displayName: displayName,
+                        photoURL: photoURL,
+                    };
+
+                    const batch = writeBatch(db);
+                    batch.set(userRef, privateData);
+                    batch.set(publicUserRef, publicData);
+                    await batch.commit();
+
+                } else if (!publicUserSnap.exists()) {
+                    // Case for an existing user missing a public profile (backfill)
+                    const userData = userSnap.data();
+                    const publicData = {
+                        uid: userData.uid,
+                        displayName: userData.displayName,
+                        photoURL: userData.photoURL,
+                    };
+                    await setDoc(publicUserRef, publicData);
                 }
                 setUser(firebaseUser);
             } else {
@@ -117,15 +152,6 @@ export const useAuth = () => {
 
 
 // --- HOOKS & HELPERS ---
-const createNewProfile = (name, userId) => ({
-    id: `profile_${Date.now()}`,
-    userId: userId,
-    name,
-    lastName: '',
-    likedNames: [],
-    seenNames: [],
-    history: [],
-});
 
 const pageTitles = {
     dashboard: 'Notre Cocon ✨',
@@ -164,11 +190,16 @@ const AppLayout = () => {
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
     const [allNames, setAllNames] = useState([]);
-    const [profiles, setProfiles] = useState({});
-    const [activeProfileId, setActiveProfileId] = useState(null);
+    const [userData, setUserData] = useState(null);
     const [currentPage, setCurrentPage] = useState('dashboard');
     const [detailedName, setDetailedName] = useState(null);
     const [theme, setTheme] = useState(getInitialTheme);
+
+    // State for friends, requests, etc.
+    const [friends, setFriends] = useState([]);
+    const [requests, setRequests] = useState([]);
+    const [sentRequests, setSentRequests] = useState([]);
+    const [isFriendsLoading, setIsFriendsLoading] = useState(true);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -176,8 +207,6 @@ const AppLayout = () => {
         root.classList.add(theme);
         localStorage.setItem('name_app_theme_v2', theme);
     }, [theme]);
-
-    const activeProfile = useMemo(() => profiles[activeProfileId] || null, [profiles, activeProfileId]);
 
     const uniqueOrigins = useMemo(() => {
         const set = new Set();
@@ -200,8 +229,8 @@ const AppLayout = () => {
                     prénom: entry.prenom,
                     genre: entry.genre.toUpperCase(),
                     signification: entry.signification,
-                    origines: [entry.origine_detail].filter(o => o && o.trim() !== ''), // Pour l'affichage
-                    filtre_global: entry.filtre_global, // Pour le filtrage
+                    origines: [entry.origine_detail].filter(o => o && o.trim() !== ''),
+                    filtre_global: entry.filtre_global,
                     id: entry.id
                 }));
                 setAllNames(parsedNames);
@@ -222,50 +251,96 @@ const AppLayout = () => {
     useEffect(() => {
         if (!user) return;
 
-        const q = query(collection(db, "profiles"), where("userId", "==", user.uid));
-        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-            if (querySnapshot.empty) {
-                const defaultProfileName = user.displayName || 'Mon Profil';
-                const newProfile = createNewProfile(defaultProfileName, user.uid);
-                await setDoc(doc(db, "profiles", newProfile.id), newProfile);
-                setProfiles({ [newProfile.id]: newProfile });
-                setActiveProfileId(newProfile.id);
+        const userRef = doc(db, "users", user.uid);
+        const unsubscribe = onSnapshot(userRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const updatedData = {
+                    ...data,
+                    lastName: data.lastName || '',
+                    likedNames: data.likedNames || [],
+                    seenNames: data.seenNames || [],
+                    history: data.history || [],
+                };
+                setUserData(updatedData);
             } else {
-                const userProfiles = {};
-                querySnapshot.forEach((doc) => {
-                    userProfiles[doc.id] = { id: doc.id, ...doc.data() };
-                });
-                setProfiles(userProfiles);
-
-                const lastActiveId = localStorage.getItem(`lastActiveProfile_${user.uid}`);
-                if (lastActiveId && userProfiles[lastActiveId]) {
-                    setActiveProfileId(lastActiveId);
-                } else if (!activeProfileId) {
-                    setActiveProfileId(querySnapshot.docs[0].id);
-                }
+                const newUserDoc = {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName || user.email.split('@')[0],
+                    photoURL: user.photoURL,
+                    createdAt: new Date(),
+                    lastName: '',
+                    likedNames: [],
+                    seenNames: [],
+                    history: [],
+                };
+                await setDoc(userRef, newUserDoc);
+                setUserData(newUserDoc);
             }
         }, (error) => {
-            console.error("Error fetching profiles:", error);
+            console.error("Error fetching user data:", error);
         });
 
         return () => unsubscribe();
-    }, [user, activeProfileId]);
+    }, [user]);
 
+    // Friend data fetching moved to AppLayout
     useEffect(() => {
-        if (user && activeProfileId) {
-            localStorage.setItem(`lastActiveProfile_${user.uid}`, activeProfileId);
-        }
-    }, [user, activeProfileId]);
+        if (!user) return;
+        setIsFriendsLoading(true);
+        const q = query(collection(db, "friendships"), where("userIds", "array-contains", user.uid));
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const friendships = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const accepted = friendships.filter(f => f.status === 'accepted');
+            const pendingReceived = friendships.filter(f => f.status === 'pending' && f.receiverId === user.uid);
+            const pendingSent = friendships.filter(f => f.status === 'pending' && f.requesterId === user.uid);
 
-    const updateActiveProfile = useCallback(async (updatedData) => {
-        if (!activeProfileId) return;
-        const profileRef = doc(db, 'profiles', activeProfileId);
-        try {
-            await updateDoc(profileRef, updatedData);
-        } catch (error) {
-            console.error("Error updating profile:", error);
+            const fetchUsers = async (uids) => {
+                if (uids.length === 0) return [];
+                const usersQuery = query(collection(db, 'users_public'), where('uid', 'in', uids));
+                const usersSnapshot = await getDocs(usersQuery);
+                return usersSnapshot.docs.map(doc => doc.data());
+            };
+
+            const friendIds = accepted.map(f => f.userIds.find(id => id !== user.uid)).filter(Boolean);
+            setFriends(await fetchUsers(friendIds));
+
+            const requesterIds = pendingReceived.map(r => r.requesterId);
+            const requestersData = await fetchUsers(requesterIds);
+            setRequests(pendingReceived.map(req => ({ ...req, user: requestersData.find(u => u.uid === req.requesterId) })));
+
+            const receiverIds = pendingSent.map(r => r.receiverId);
+            const receiversData = await fetchUsers(receiverIds);
+            setSentRequests(pendingSent.map(req => ({ ...req, user: receiversData.find(u => u.uid === req.receiverId) })));
+
+            setIsFriendsLoading(false);
+        }, (error) => {
+            console.error("Error listening to friendships:", error);
+            setIsFriendsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [user]);
+
+    const updateUserData = useCallback(async (updatedData) => {
+        if (!user) return;
+        const batch = writeBatch(db);
+        const userRef = doc(db, 'users', user.uid);
+        batch.update(userRef, updatedData);
+        const publicUpdate = {};
+        if (updatedData.displayName) publicUpdate.displayName = updatedData.displayName;
+        if (updatedData.photoURL) publicUpdate.photoURL = updatedData.photoURL;
+        if (Object.keys(publicUpdate).length > 0) {
+            const publicUserRef = doc(db, 'users_public', user.uid);
+            batch.update(publicUserRef, publicUpdate);
         }
-    }, [activeProfileId]);
+        try {
+            await batch.commit();
+        } catch (error) {
+            console.error("Error updating user data:", error);
+        }
+    }, [user]);
 
     const handleNavigate = (page) => {
         setCurrentPage(page);
@@ -273,8 +348,27 @@ const AppLayout = () => {
     };
 
     const renderPage = () => {
-        if (isLoading || !activeProfile) return <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>;
-        if (detailedName) return <NameDetailScreen name={detailedName} profile={activeProfile} updateProfile={updateActiveProfile} onBack={() => setDetailedName(null)} />;
+        if (isLoading || !userData) return <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>;
+        if (detailedName) return <NameDetailScreen name={detailedName} profile={userData} updateProfile={updateUserData} onBack={() => setDetailedName(null)} />;
+
+        const pageProps = {
+            profile: userData,
+            allNames,
+            updateProfile: updateUserData,
+            setDetailedName,
+            origins: uniqueOrigins,
+            theme,
+            setTheme,
+            onNavigate: handleNavigate,
+            friends,
+            requests,
+            sentRequests,
+            isFriendsLoading,
+            setRequests,
+            setFriends,
+            setSentRequests,
+            currentUser: user,
+        };
 
         const PageComponent = {
             dashboard: DashboardScreen,
@@ -285,7 +379,7 @@ const AppLayout = () => {
             friends: FriendsScreen,
         }[currentPage];
 
-        return PageComponent ? <PageComponent profile={activeProfile} allNames={allNames} updateProfile={updateActiveProfile} profiles={profiles} setProfiles={setProfiles} setActiveProfileId={setActiveProfileId} setDetailedName={setDetailedName} origins={uniqueOrigins} theme={theme} setTheme={setTheme} onNavigate={handleNavigate} /> : null;
+        return PageComponent ? <PageComponent {...pageProps} /> : null;
     };
 
     return (
@@ -293,11 +387,9 @@ const AppLayout = () => {
             <AnimatedBackground theme={theme} />
             <BackgroundDecorations />
             <TopBar title={pageTitles[detailedName ? 'detail' : currentPage]} onAccountClick={() => handleNavigate('profile')} />
-
             <main className="flex-1 p-4 overflow-y-auto pb-28">
                 {renderPage()}
             </main>
-
             <BottomNavBar currentPage={currentPage} onNavigate={handleNavigate} />
         </div>
     );
@@ -451,7 +543,7 @@ const AnimatedBackground = ({ theme }) => {
 };
 
 // --- Reste des composants (inchangés) ---
-const DashboardScreen = ({ profile, allNames }) => { const liked = useMemo(() => profile.likedNames.map(id => allNames.find(n => n.id === id)).filter(Boolean), [profile.likedNames, allNames]); const m = useMemo(() => liked.filter(n => n.genre === 'M').length, [liked]); const boyPercent = liked.length > 0 ? Math.round((m / liked.length) * 100) : 0; const medalColors = ['#FFD700', '#C4C4C4', '#D9A77A']; return (<AnimatedPage className="space-y-6"><div className="text-center"><h1 className="text-3xl font-bold text-text-primary">Bonjour, {profile.name} !</h1><p className="text-text-secondary mt-1">Voici le résumé de vos découvertes.</p></div><Card><h2 className="font-bold text-lg mb-4 text-center text-text-primary">Statistiques</h2><div className="flex justify-around text-center"><div className="flex flex-col items-center space-y-1"><EyeIcon className="h-8 w-8 text-lavande-poudre" /><p className="text-3xl font-bold text-text-primary">{profile.seenNames.length}</p><p className="text-text-secondary text-sm">Prénoms vus</p></div><div className="flex flex-col items-center space-y-1"><HeartIcon className="h-8 w-8 text-rose-saumon" /><p className="text-3xl font-bold text-text-primary">{profile.likedNames.length}</p><p className="text-text-secondary text-sm">Coups de cœur</p></div></div></Card><Card><h2 className="font-bold text-lg mb-3 text-center text-text-primary">Répartition Garçon/Fille</h2><div className="w-full bg-rose-saumon-bg rounded-full h-4 relative overflow-hidden"><div className="bg-bleu-layette-bg h-4 rounded-l-full" style={{ width: `${boyPercent}%` }}></div></div><div className="flex justify-between text-xs text-text-secondary mt-1"><span>Garçon {boyPercent}%</span><span>Fille {100 - boyPercent}%</span></div></Card><Card><h2 className="font-bold text-lg mb-3 text-center text-text-primary">Nos petits trésors 🏆</h2>{profile.likedNames.length > 0 ? (<ul className="space-y-2">{profile.likedNames.slice(0, 3).map((nameId, index) => { const name = allNames.find(n => n.id === nameId); if (!name) return null; const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<li key={name.id} className={`flex items-center space-x-4 p-3 rounded-xl ${genderBg} border-l-4`} style={{ borderColor: medalColors[index] }}><TrophyIcon color={medalColors[index]} className="h-7 w-7 flex-shrink-0" /><p className="font-semibold text-text-primary"><span className="text-lg">{name.prénom}</span>{profile.lastName && <span className="text-base ml-2 text-text-secondary">{profile.lastName}</span>}</p></li>) })}</ul>) : (<p className="text-center text-text-secondary py-4">Aimez des prénoms pour voir vos trésors !</p>)}</Card></AnimatedPage>); };
+const DashboardScreen = ({ profile, allNames }) => { const liked = useMemo(() => profile.likedNames.map(id => allNames.find(n => n.id === id)).filter(Boolean), [profile.likedNames, allNames]); const m = useMemo(() => liked.filter(n => n.genre === 'M').length, [liked]); const boyPercent = liked.length > 0 ? Math.round((m / liked.length) * 100) : 0; const medalColors = ['#FFD700', '#C4C4C4', '#D9A77A']; return (<AnimatedPage className="space-y-6"><div className="text-center"><h1 className="text-3xl font-bold text-text-primary">Bonjour, {profile.displayName} !</h1><p className="text-text-secondary mt-1">Voici le résumé de vos découvertes.</p></div><Card><h2 className="font-bold text-lg mb-4 text-center text-text-primary">Statistiques</h2><div className="flex justify-around text-center"><div className="flex flex-col items-center space-y-1"><EyeIcon className="h-8 w-8 text-lavande-poudre" /><p className="text-3xl font-bold text-text-primary">{profile.seenNames.length}</p><p className="text-text-secondary text-sm">Prénoms vus</p></div><div className="flex flex-col items-center space-y-1"><HeartIcon className="h-8 w-8 text-rose-saumon" /><p className="text-3xl font-bold text-text-primary">{profile.likedNames.length}</p><p className="text-text-secondary text-sm">Coups de cœur</p></div></div></Card><Card><h2 className="font-bold text-lg mb-3 text-center text-text-primary">Répartition Garçon/Fille</h2><div className="w-full bg-rose-saumon-bg rounded-full h-4 relative overflow-hidden"><div className="bg-bleu-layette-bg h-4 rounded-l-full" style={{ width: `${boyPercent}%` }}></div></div><div className="flex justify-between text-xs text-text-secondary mt-1"><span>Garçon {boyPercent}%</span><span>Fille {100 - boyPercent}%</span></div></Card><Card><h2 className="font-bold text-lg mb-3 text-center text-text-primary">Nos petits trésors 🏆</h2>{profile.likedNames.length > 0 ? (<ul className="space-y-2">{profile.likedNames.slice(0, 3).map((nameId, index) => { const name = allNames.find(n => n.id === nameId); if (!name) return null; const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<li key={name.id} className={`flex items-center space-x-4 p-3 rounded-xl ${genderBg} border-l-4`} style={{ borderColor: medalColors[index] }}><TrophyIcon color={medalColors[index]} className="h-7 w-7 flex-shrink-0" /><p className="font-semibold text-text-primary"><span className="text-lg">{name.prénom}</span>{profile.lastName && <span className="text-base ml-2 text-text-secondary">{profile.lastName}</span>}</p></li>) })}</ul>) : (<p className="text-center text-text-secondary py-4">Aimez des prénoms pour voir vos trésors !</p>)}</Card></AnimatedPage>); };
 const DiscoverScreen = ({ profile, allNames, updateProfile, origins }) => {
     const [cardStack, setCardStack] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -543,76 +635,202 @@ const DiscoverScreen = ({ profile, allNames, updateProfile, origins }) => {
     );
 };
 const FavoritesListScreen = ({ profile, allNames, updateProfile, setDetailedName }) => { const [favoriteItems, setFavoriteItems] = useState([]); const [draggedItem, setDraggedItem] = useState(null); useEffect(() => { setFavoriteItems([...profile.likedNames].reverse()); }, [profile.likedNames]); const handleRemove = (nameId) => { const newLikedNames = profile.likedNames.filter(id => id !== nameId); updateProfile({ likedNames: newLikedNames }); }; const handleDragStart = (e, index) => { setDraggedItem(index); e.dataTransfer.effectAllowed = 'move'; }; const handleDragOver = (e, index) => { e.preventDefault(); }; const handleDrop = (e, dropIndex) => { const draggedId = favoriteItems[draggedItem]; const newItems = [...favoriteItems]; newItems.splice(draggedItem, 1); newItems.splice(dropIndex, 0, draggedId); setFavoriteItems(newItems); updateProfile({ likedNames: [...newItems].reverse() }); }; const handleDragEnd = () => { setDraggedItem(null); }; return (<AnimatedPage><h1 className="text-3xl font-bold text-text-primary mb-2">Vos Trésors</h1><p className="text-text-secondary mb-6 -mt-1">Organisez votre liste en glissant-déposant les prénoms.</p>{favoriteItems.length > 0 ? (<ul className="space-y-3">{favoriteItems.map((id, index) => { const name = allNames.find(n => n.id === id); if (!name) return null; return (<FavoriteItem key={id} name={name} lastName={profile.lastName} index={index} isBeingDragged={draggedItem === index} onRemove={handleRemove} onViewDetails={setDetailedName} onDragStart={(e) => handleDragStart(e, index)} onDragOver={(e) => handleDragOver(e, index)} onDrop={(e) => handleDrop(e, index)} onDragEnd={handleDragEnd} />); })}</ul>) : (<Card className="text-center"><HeartIcon className="h-16 w-16 mx-auto text-slate-300 dark:text-slate-600" /><h3 className="text-xl font-semibold text-text-primary mt-4">Aucun trésor pour l'instant</h3><p className="text-text-secondary mt-2">Allez dans "Trouvailles" pour découvrir des prénoms !</p></Card>)}</AnimatedPage>); };
-const CompareScreen = ({ profile, allNames, updateProfile, onNavigate }) => { const { user } = useAuth(); const [friends, setFriends] = useState([]); const [selectedFriend, setSelectedFriend] = useState(null); const [friendProfiles, setFriendProfiles] = useState(null); const [loading, setLoading] = useState(true); useEffect(() => { if (!user) return; const q = query(collection(db, "friendships"), where("userIds", "array-contains", user.uid), where("status", "==", "accepted")); const unsubscribe = onSnapshot(q, async (snapshot) => { const friendIds = snapshot.docs.map(doc => { const { userIds } = doc.data(); return userIds.find(id => id !== user.uid); }); if (friendIds.length > 0) { const usersQuery = query(collection(db, 'users'), where('uid', 'in', friendIds)); const usersSnapshot = await getDocs(usersQuery); const friendsData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setFriends(friendsData); } else { setFriends([]); } setLoading(false); }); return () => unsubscribe(); }, [user]); const handleSelectFriend = async (friend) => { setLoading(true); setSelectedFriend(friend); const q = query(collection(db, "profiles"), where("userId", "==", friend.uid)); const profilesSnapshot = await getDocs(q); const profilesData = profilesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); setFriendProfiles(profilesData[0]); setLoading(false); }; const handleToggleLike = (nameId) => { const currentLiked = new Set(profile.likedNames); if (currentLiked.has(nameId)) { currentLiked.delete(nameId); } else { currentLiked.add(nameId); } updateProfile({ likedNames: Array.from(currentLiked) }); }; if (loading) return <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>; if (!selectedFriend) { return (<AnimatedPage className="space-y-4"> <h1 className="text-3xl font-bold text-center text-text-primary">Comparer avec...</h1> {friends.length > 0 ? friends.map(f => (<Card key={f.id} onClick={() => handleSelectFriend(f)} className="flex items-center space-x-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:bg-hover-bg"> <img src={f.photoURL || `https://i.pravatar.cc/150?u=${f.id}`} alt={f.displayName} className="h-12 w-12 rounded-full" /> <span className="text-xl font-semibold text-text-primary">{f.displayName}</span> </Card>)) : (<Card className="text-center"> <UsersIcon className="h-16 w-16 mx-auto text-slate-300 dark:text-slate-600" /> <h3 className="text-xl font-semibold text-text-primary mt-4">Ajoutez des amis</h3> <p className="text-text-secondary mt-2">Vous avez besoin d'amis pour comparer vos listes.</p> <Button color="primary" onClick={() => onNavigate('friends')} className="mt-6">Gérer mes amis</Button> </Card>)} </AnimatedPage>); } const other = friendProfiles; const common = profile.likedNames.filter(id => other.likedNames.includes(id)).map(id => allNames.find(n => n.id === id)).filter(Boolean); const otherOnly = other.likedNames.filter(id => !profile.likedNames.includes(id)).map(id => allNames.find(n => n.id === id)).filter(Boolean); return (<AnimatedPage className="space-y-6"> <button onClick={() => setSelectedFriend(null)} className="text-lavande-poudre font-semibold flex items-center space-x-2 group"><span className="transform transition-transform group-hover:-translate-x-1">&larr;</span><span>Retour</span></button> <Card className="bg-vert-menthe/10 border-l-4 border-vert-menthe"><h2 className="font-bold text-lg mb-2 text-vert-menthe-dark">Prénoms en commun ({common.length})</h2>{common.length > 0 ? (<div className="space-y-2 mt-2">{common.map(n => <CompareRow key={n.id} name={n} lastName={profile.lastName} isLiked={true} onToggleLike={handleToggleLike} />)}</div>) : <p className="text-vert-menthe-dark/80 text-sm">Aucun prénom en commun.</p>}</Card> <Card className="bg-rose-saumon/10 border-l-4 border-rose-saumon"><h2 className="font-bold text-lg mb-2 text-rose-saumon-dark">Aimés par {selectedFriend.displayName} ({otherOnly.length})</h2>{otherOnly.length > 0 ? (<div className="space-y-2 mt-2">{otherOnly.map(n => <CompareRow key={n.id} name={n} lastName={profile.lastName} isLiked={false} onToggleLike={handleToggleLike} />)}</div>) : <p className="text-rose-saumon-dark/80 text-sm">Aucun prénom supplémentaire.</p>}</Card> </AnimatedPage>); };
-const ProfileManagementScreen = ({ profiles, profile, setActiveProfileId, updateProfile, theme, setTheme, onNavigate }) => { const { user } = useAuth(); const [isCreateModalOpen, setCreateModalOpen] = useState(false); const [isDeleteModalOpen, setDeleteModalOpen] = useState(false); const [profileName, setProfileName] = useState(''); const [lastName, setLastName] = useState(''); useEffect(() => { if (profile) { setProfileName(profile.name); setLastName(profile.lastName || ''); } else { setProfileName(''); setLastName(''); } }, [profile]); const handleProfileChange = (e) => setActiveProfileId(e.target.value); const handleCreate = async (name) => { if (name && user) { const newProfile = createNewProfile(name, user.uid); await setDoc(doc(db, "profiles", newProfile.id), newProfile); setActiveProfileId(newProfile.id); setCreateModalOpen(false); } }; const handleProfileInfoSave = () => { if (profile) updateProfile({ name: profileName, lastName: lastName }); }; const handleDelete = async () => { if (!profile || Object.keys(profiles).length <= 1) return; await deleteDoc(doc(db, "profiles", profile.id)); setDeleteModalOpen(false); }; const handleLogout = async () => { try { await signOut(auth); } catch (error) { console.error("Error signing out:", error); } }; return (<AnimatedPage className="space-y-6"> <Card><h2 className="text-xl font-bold mb-4 text-text-primary">Mon Compte</h2> <div className="flex items-center space-x-4 mb-6"> <img src={user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`} alt="User" className="h-16 w-16 rounded-full" /> <div> <p className="font-bold text-text-primary">{user.displayName}</p> <p className="text-sm text-text-secondary">{user.email}</p> </div> </div> <Button color="red" onClick={handleLogout} className="w-full mb-6 flex items-center justify-center gap-2"><LogoutIcon /> Se déconnecter</Button> </Card> <Card><h2 className="text-xl font-bold mb-4 text-text-primary">Gestion des Profils</h2><div className="space-y-4"><div><label htmlFor="profileSelector" className="block text-sm font-medium text-text-secondary">Profil Actif</label>{Object.keys(profiles).length > 0 ? (<select id="profileSelector" value={profile?.id || ''} onChange={handleProfileChange} className="mt-1 block w-full p-3 border border-subtle-border bg-card-bg text-text-primary rounded-lg focus:ring-2 focus:ring-lavande-poudre focus:outline-none">{Object.values(profiles).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>) : <p className="text-text-secondary text-center py-4">Aucun profil n'existe.</p>}</div><div><label htmlFor="profileName" className="block text-sm font-medium text-text-secondary">Nom du profil</label><input type="text" id="profileName" value={profileName} onChange={(e) => setProfileName(e.target.value)} disabled={!profile} className="mt-1 block w-full px-3 py-2 bg-card-bg border border-subtle-border rounded-md text-sm shadow-sm placeholder-slate-400 focus:outline-none focus:border-lavande-poudre focus:ring-1 focus:ring-lavande-poudre disabled:bg-hover-bg disabled:cursor-not-allowed" /></div><div><label htmlFor="lastName" className="block text-sm font-medium text-text-secondary">Nom de famille</label><input type="text" id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Optionnel" disabled={!profile} className="mt-1 block w-full px-3 py-2 bg-card-bg border border-subtle-border rounded-md text-sm shadow-sm placeholder-slate-400 focus:outline-none focus:border-lavande-poudre focus:ring-1 focus:ring-lavande-poudre disabled:bg-hover-bg disabled:cursor-not-allowed" /></div><Button onClick={handleProfileInfoSave} className="w-full" disabled={!profile}>Sauvegarder les modifications</Button><div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-subtle-border mt-4"><Button color="primary" onClick={() => setCreateModalOpen(true)} className="w-full">Créer un profil</Button><Button color="red" onClick={() => setDeleteModalOpen(true)} disabled={!profile || Object.keys(profiles).length <= 1} className="w-full">Supprimer le profil</Button></div></div></Card> <Card><h2 className="text-xl font-bold mb-4 text-text-primary">Apparence</h2><ThemeToggle theme={theme} setTheme={setTheme} /></Card> {isCreateModalOpen && <Modal title="Nouveau Profil" onClose={() => setCreateModalOpen(false)}><CreateProfileModal onCreate={handleCreate} onClose={() => setCreateModalOpen(false)} /></Modal>} {isDeleteModalOpen && profile && <Modal title="Confirmer la suppression" onClose={() => setDeleteModalOpen(false)}><p className="text-text-secondary mb-6">Êtes-vous sûr de vouloir supprimer "{profile.name}" ?</p><div className="flex justify-end space-x-4"><button type="button" onClick={() => setDeleteModalOpen(false)} className="px-4 py-2 bg-hover-bg rounded-lg font-semibold hover:brightness-95 transition-colors">Annuler</button><Button color="red" onClick={handleDelete}>Supprimer</Button></div></Modal>} </AnimatedPage>); };
-const FriendsScreen = ({ onNavigate }) => {
+const CompareScreen = ({ profile, allNames, updateProfile, onNavigate, friends, isFriendsLoading }) => {
+    const [selectedFriend, setSelectedFriend] = useState(null);
+    const [friendData, setFriendData] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleSelectFriend = async (friend) => {
+        setLoading(true);
+        setSelectedFriend(friend);
+        const userRef = doc(db, "users", friend.uid);
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setFriendData({
+                ...data,
+                likedNames: data.likedNames || [],
+                lastName: data.lastName || '',
+            });
+        } else {
+            console.error("Friend data not found!");
+            setFriendData(null);
+        }
+        setLoading(false);
+    };
+
+    const handleToggleLike = (nameId) => {
+        const currentLiked = new Set(profile.likedNames);
+        if (currentLiked.has(nameId)) {
+            currentLiked.delete(nameId);
+        } else {
+            currentLiked.add(nameId);
+        }
+        updateProfile({ likedNames: Array.from(currentLiked) });
+    };
+
+    if (isFriendsLoading) {
+        return <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>;
+    }
+
+    if (!selectedFriend || !friendData) {
+        return (
+            <AnimatedPage className="space-y-4">
+                <h1 className="text-3xl font-bold text-center text-text-primary">Comparer avec...</h1>
+                {friends.length > 0 ? friends.map(f => (
+                    <Card key={f.uid} onClick={() => handleSelectFriend(f)} className="flex items-center justify-between p-4 transition-all hover:bg-hover-bg cursor-pointer">
+                        <div className="flex items-center space-x-4">
+                            <img src={f.photoURL || `https://i.pravatar.cc/150?u=${f.uid}`} alt={f.displayName} className="h-12 w-12 rounded-full" />
+                            <p className="font-bold text-text-primary">{f.displayName}</p>
+                        </div>
+                        <span className="text-lavande-poudre font-bold">&rarr;</span>
+                    </Card>
+                )) : (
+                    <Card className="text-center">
+                        <p className="text-text-secondary">Vous n'avez pas encore d'amis.</p>
+                        <Button onClick={() => onNavigate('friends')} className="mt-4">Ajouter des amis</Button>
+                    </Card>
+                )}
+            </AnimatedPage>
+        );
+    }
+
+    if (loading) {
+        return <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>;
+    }
+
+    const commonLikedNames = profile.likedNames.filter(id => friendData.likedNames.includes(id));
+    const myUniqueLiked = profile.likedNames.filter(id => !friendData.likedNames.includes(id));
+    const friendUniqueLiked = friendData.likedNames.filter(id => !profile.likedNames.includes(id));
+    const getNameById = (id) => allNames.find(n => n.id === id);
+
+    return (
+        <AnimatedPage className="space-y-6">
+            <button onClick={() => { setSelectedFriend(null); setFriendData(null); }} className="text-lavande-poudre font-semibold flex items-center space-x-2 group mb-4">
+                <span className="transform transition-transform group-hover:-translate-x-1">&larr;</span>
+                <span>Retour</span>
+            </button>
+            <div className="text-center">
+                <h1 className="text-3xl font-bold text-text-primary">Accord Parfait</h1>
+                <p className="text-text-secondary mt-1">Vous et <span className="font-bold">{selectedFriend.displayName}</span></p>
+            </div>
+            <Card>
+                <h2 className="text-xl font-bold mb-4 text-text-primary text-center">💖 Matchs ({commonLikedNames.length})</h2>
+                {commonLikedNames.length > 0 ? (
+                    <ul className="space-y-2">
+                        {commonLikedNames.map(getNameById).filter(Boolean).map(name => <CompareRow key={name.id} name={name} lastName={profile.lastName} isLiked={true} onToggleLike={() => handleToggleLike(name.id)} />)}
+                    </ul>
+                ) : (
+                    <p className="text-text-secondary text-center">Aucun prénom en commun pour l'instant.</p>
+                )}
+            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                    <h2 className="text-xl font-bold mb-4 text-text-primary">Vos trésors ({myUniqueLiked.length})</h2>
+                    {myUniqueLiked.length > 0 ? (
+                        <ul className="space-y-2">
+                            {myUniqueLiked.map(getNameById).filter(Boolean).map(name => <CompareRow key={name.id} name={name} lastName={profile.lastName} isLiked={true} onToggleLike={() => handleToggleLike(name.id)} />)}
+                        </ul>
+                    ) : (
+                        <p className="text-text-secondary">...</p>
+                    )}
+                </Card>
+                <Card>
+                    <h2 className="text-xl font-bold mb-4 text-text-primary">{friendData.displayName} ({friendUniqueLiked.length})</h2>
+                    {friendUniqueLiked.length > 0 ? (
+                        <ul className="space-y-2">
+                            {friendUniqueLiked.map(getNameById).filter(Boolean).map(name => <CompareRow key={name.id} name={name} lastName={friendData.lastName} isLiked={profile.likedNames.includes(name.id)} onToggleLike={() => handleToggleLike(name.id)} />)}
+                        </ul>
+                    ) : (
+                        <p className="text-text-secondary">...</p>
+                    )}
+                </Card>
+            </div>
+        </AnimatedPage>
+    );
+};
+
+const ProfileManagementScreen = ({ profile, updateProfile, theme, setTheme }) => {
     const { user } = useAuth();
-    const [friends, setFriends] = useState([]);
-    const [requests, setRequests] = useState([]);
-    const [sentRequests, setSentRequests] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [isSearchModalOpen, setSearchModalOpen] = useState(false);
+    const [displayName, setDisplayName] = useState('');
+    const [lastName, setLastName] = useState('');
 
     useEffect(() => {
-        if (!user) return;
-        setLoading(true);
+        if (profile) {
+            setDisplayName(profile.displayName);
+            setLastName(profile.lastName || '');
+        }
+    }, [profile]);
 
-        const unsubs = [];
-        let loadedCount = 0;
-        const totalQueries = 3;
+    const handleProfileInfoSave = () => {
+        if (profile) updateProfile({ displayName, lastName });
+    };
 
-        const checkDone = () => {
-            loadedCount++;
-            if (loadedCount >= totalQueries) {
-                setLoading(false);
-            }
-        };
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+        } catch (error) {
+            console.error("Error signing out:", error);
+        }
+    };
 
-        // Friends
-        const qFriends = query(collection(db, "friendships"), where("userIds", "array-contains", user.uid), where("status", "==", "accepted"));
-        unsubs.push(onSnapshot(qFriends, async (snapshot) => {
-            const friendIds = snapshot.docs.map(doc => doc.data().userIds.find(id => id !== user.uid)).filter(Boolean);
-            if (friendIds.length > 0) {
-                const usersQuery = query(collection(db, 'users'), where('uid', 'in', friendIds));
-                const usersSnapshot = await getDocs(usersQuery);
-                setFriends(usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            } else {
-                setFriends([]);
-            }
-            checkDone();
-        }, () => checkDone()));
+    return (
+        <AnimatedPage className="space-y-6">
+            <Card>
+                <h2 className="text-xl font-bold mb-4 text-text-primary">Mon Compte</h2>
+                <div className="flex items-center space-x-4 mb-6">
+                    <img src={user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`} alt="User" className="h-16 w-16 rounded-full" />
+                    <div>
+                        <p className="font-bold text-text-primary">{user.displayName}</p>
+                        <p className="text-sm text-text-secondary">{user.email}</p>
+                    </div>
+                </div>
+                <Button color="red" onClick={handleLogout} className="w-full mb-6 flex items-center justify-center gap-2"><LogoutIcon /> Se déconnecter</Button>
+            </Card>
+            <Card>
+                <h2 className="text-xl font-bold mb-4 text-text-primary">Informations</h2>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="display-name" className="block text-sm font-medium text-text-secondary mb-1">Nom d'utilisateur</label>
+                        <input id="display-name" type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full px-4 py-3 border border-subtle-border bg-hover-bg text-text-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-lavande-poudre" />
+                    </div>
+                    <div>
+                        <label htmlFor="last-name" className="block text-sm font-medium text-text-secondary mb-1">Nom de famille (pour les matchs)</label>
+                        <input id="last-name" type="text" value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-4 py-3 border border-subtle-border bg-hover-bg text-text-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-lavande-poudre" />
+                    </div>
+                    <Button onClick={handleProfileInfoSave} className="w-full">Enregistrer</Button>
+                </div>
+            </Card>
+            <Card>
+                <h2 className="text-xl font-bold mb-4 text-text-primary">Préférences</h2>
+                <ThemeToggle theme={theme} setTheme={setTheme} />
+            </Card>
+        </AnimatedPage>
+    );
+};
 
-        // Received Requests
-        const qRequests = query(collection(db, "friendships"), where("receiverId", "==", user.uid), where("status", "==", "pending"));
-        unsubs.push(onSnapshot(qRequests, async (snapshot) => {
-            const requestsData = await Promise.all(snapshot.docs.map(async (fdoc) => {
-                const requestData = fdoc.data();
-                const userSnap = await getDoc(doc(db, 'users', requestData.requesterId));
-                return { id: fdoc.id, ...requestData, user: userSnap.data() };
-            }));
-            setRequests(requestsData);
-            checkDone();
-        }, () => checkDone()));
-
-        // Sent Requests
-        const qSent = query(collection(db, "friendships"), where("requesterId", "==", user.uid), where("status", "==", "pending"));
-        unsubs.push(onSnapshot(qSent, async (snapshot) => {
-            const sentRequestsData = await Promise.all(snapshot.docs.map(async (fdoc) => {
-                const requestData = fdoc.data();
-                const userSnap = await getDoc(doc(db, 'users', requestData.receiverId));
-                return { id: fdoc.id, ...requestData, user: userSnap.data() };
-            }));
-            setSentRequests(sentRequestsData);
-            checkDone();
-        }, () => checkDone()));
-
-        return () => {
-            unsubs.forEach(unsub => unsub());
-        };
-    }, [user]);
+const FriendsScreen = ({
+    friends,
+    requests,
+    sentRequests,
+    isFriendsLoading,
+    onNavigate,
+    setRequests,
+    setFriends,
+    currentUser,
+    setSentRequests
+}) => {
+    const [isSearchModalOpen, setSearchModalOpen] = useState(false);
 
     const handleRequestAction = async (friendshipId, newStatus) => {
+        const request = requests.find(r => r.id === friendshipId);
+        if (!request || !request.user) return;
+
         setRequests(prev => prev.filter(req => req.id !== friendshipId));
+        if (newStatus === 'accepted') {
+            setFriends(prev => [...prev, request.user]);
+        }
+
         const friendshipRef = doc(db, 'friendships', friendshipId);
         try {
             if (newStatus === 'accepted') {
@@ -634,18 +852,20 @@ const FriendsScreen = ({ onNavigate }) => {
             console.error("Erreur lors de l'annulation de la demande:", error);
         }
     };
-    
+
     const addSentRequestOptimistically = (sentRequest) => {
         setSentRequests(currentSentRequests => [sentRequest, ...currentSentRequests]);
-        setSearchModalOpen(false); // Ferme le modal après l'envoi
+        setSearchModalOpen(false);
     };
 
     const removeFriend = async (friendId) => {
         const confirmed = window.confirm("Êtes-vous sûr de vouloir supprimer cet ami ?");
         if (!confirmed) return;
+        
         setFriends(prev => prev.filter(f => f.uid !== friendId));
+        
         try {
-            const userIds = [user.uid, friendId].sort();
+            const userIds = [currentUser.uid, friendId].sort();
             const friendshipId = userIds.join('_');
             const friendshipRef = doc(db, 'friendships', friendshipId);
             await deleteDoc(friendshipRef);
@@ -654,7 +874,7 @@ const FriendsScreen = ({ onNavigate }) => {
         }
     };
 
-    if (loading) {
+    if (isFriendsLoading) {
         return <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>;
     }
 
@@ -674,8 +894,8 @@ const FriendsScreen = ({ onNavigate }) => {
                         {requests.map(req => (
                             <li key={req.id} className="flex items-center justify-between p-3 bg-hover-bg rounded-lg">
                                 <div className="flex items-center gap-3">
-                                    <img src={req.user.photoURL || `https://i.pravatar.cc/150?u=${req.user.uid}`} alt={req.user.displayName} className="h-10 w-10 rounded-full" />
-                                    <span className="font-semibold text-text-primary">{req.user.displayName}</span>
+                                    <img src={req.user?.photoURL || `https://i.pravatar.cc/150?u=${req.user?.uid}`} alt={req.user?.displayName} className="h-10 w-10 rounded-full" />
+                                    <span className="font-semibold text-text-primary">{req.user?.displayName}</span>
                                 </div>
                                 <div className="flex gap-2">
                                     <Button onClick={() => handleRequestAction(req.id, 'accepted')} color="emerald" className="!py-2 !px-4">Accepter</Button>
@@ -694,9 +914,9 @@ const FriendsScreen = ({ onNavigate }) => {
                         {sentRequests.map(req => (
                             <li key={req.id} className="flex items-center justify-between p-3 bg-hover-bg rounded-lg">
                                 <div className="flex items-center gap-3">
-                                    <img src={req.user.photoURL || `https://i.pravatar.cc/150?u=${req.user.uid}`} alt={req.user.displayName} className="h-10 w-10 rounded-full" />
+                                    <img src={req.user?.photoURL || `https://i.pravatar.cc/150?u=${req.user?.uid}`} alt={req.user?.displayName} className="h-10 w-10 rounded-full" />
                                     <div>
-                                        <span className="font-semibold text-text-primary">{req.user.displayName}</span>
+                                        <span className="font-semibold text-text-primary">{req.user?.displayName}</span>
                                         <p className="text-sm text-text-secondary">En attente</p>
                                     </div>
                                 </div>
@@ -731,15 +951,17 @@ const FriendsScreen = ({ onNavigate }) => {
                 )}
             </Card>
 
-            {isSearchModalOpen && <SearchFriendModal onClose={() => setSearchModalOpen(false)} currentUser={user} friends={friends} onFriendRequestSent={addSentRequestOptimistically} />}
+            {isSearchModalOpen && <SearchFriendModal onClose={() => setSearchModalOpen(false)} currentUser={currentUser} friends={friends} onFriendRequestSent={addSentRequestOptimistically} />}
         </AnimatedPage>
     );
 };
+
+
 const SearchFriendModal = ({ onClose, currentUser, friends, onFriendRequestSent }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState('Recherchez des utilisateurs par leur nom d\'utilisateur.');
 
     const handleSearch = async (e) => {
         e.preventDefault();
@@ -750,12 +972,15 @@ const SearchFriendModal = ({ onClose, currentUser, friends, onFriendRequestSent 
         setLoading(true);
         setMessage('');
         try {
-            const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('email', '==', searchTerm.trim().toLowerCase()));
+            const usersRef = collection(db, 'users_public');
+            const q = query(usersRef, 
+                where('displayName', '>=', searchTerm.trim()),
+                where('displayName', '<=', searchTerm.trim() + '\uf8ff')
+            );
             const querySnapshot = await getDocs(q);
             const foundUsers = querySnapshot.docs.map(doc => doc.data()).filter(u => u.uid !== currentUser.uid);
             setResults(foundUsers);
-            if (foundUsers.length === 0) setMessage('Aucun utilisateur trouvé avec cet email.');
+            if (foundUsers.length === 0) setMessage('Aucun utilisateur trouvé.');
         } catch (error) {
             console.error("Error searching users:", error);
             setMessage('Une erreur est survenue.');
@@ -794,9 +1019,9 @@ const SearchFriendModal = ({ onClose, currentUser, friends, onFriendRequestSent 
 
     return (
         <Modal title="Ajouter un ami" onClose={onClose}>
-            <p className="text-text-secondary mb-4 text-sm">Recherchez un ami par son adresse email.</p>
+            <p className="text-text-secondary mb-4 text-sm">Recherchez un ami par son nom d\'utilisateur.</p>
             <form onSubmit={handleSearch} className="flex gap-2">
-                <input type="email" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="email@exemple.com" className="flex-grow px-4 py-2 border border-subtle-border bg-hover-bg text-text-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-lavande-poudre" autoFocus />
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Nom d\'utilisateur" className="flex-grow px-4 py-2 border border-subtle-border bg-hover-bg text-text-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-lavande-poudre" autoFocus />
                 <Button type="submit" disabled={loading}>{loading ? <LoadingSpinner small /> : 'Rechercher'}</Button>
             </form>
             {message && <p className="text-center text-sm text-text-secondary mt-4">{message}</p>}
@@ -830,7 +1055,7 @@ const FavoriteItem = ({ name, lastName, index, onRemove, onViewDetails, onDragSt
 const CompareRow = ({ name, lastName, isLiked, onToggleLike }) => { const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<div className={`flex justify-between items-center p-3 rounded-xl ${genderBg}`}><p className="font-semibold text-text-primary">{name.prénom}{lastName && <span className="ml-2 font-normal text-text-secondary">{lastName}</span>}</p><button onClick={() => onToggleLike(name.id)}><HeartIcon className={`w-7 h-7 transition-all duration-200 transform ${isLiked ? 'text-rose-saumon scale-100' : 'text-slate-300 dark:text-slate-500 scale-90 hover:text-rose-saumon/70 hover:scale-110'}`} /></button></div>); };
 const NameDetailScreen = ({ name, profile, updateProfile, onBack }) => { const isLiked = profile.likedNames.includes(name.id); const handleLike = () => { const currentLiked = new Set(profile.likedNames); if (currentLiked.has(name.id)) { currentLiked.delete(name.id); } else { currentLiked.add(name.id); } updateProfile({ likedNames: Array.from(currentLiked) }); }; const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<AnimatedPage><button onClick={onBack} className="text-lavande-poudre font-semibold flex items-center space-x-2 group mb-4"><span className="transform transition-transform group-hover:-translate-x-1">&larr;</span><span>Retour</span></button><Card className={`text-center ${genderBg}`}><h1 className="text-6xl font-bold text-text-primary">{name.prénom}{profile.lastName && <span className="text-5xl ml-3 text-text-secondary">{profile.lastName}</span>}</h1><p className="italic text-text-secondary my-4 text-lg">"{name.signification}"</p><p className="text-text-secondary">Origine(s): {name.origines.join(', ')}</p><div className="flex justify-center items-center mt-8 pt-6 border-t border-subtle-border"><button onClick={handleLike}><HeartIcon isLiked={isLiked} className={`h-16 w-16 transition-all transform hover:scale-110 active:scale-100 ${isLiked ? 'text-rose-saumon' : 'text-slate-300 dark:text-slate-600'}`} /></button></div></Card></AnimatedPage>); };
 const ThemeToggle = ({ theme, setTheme }) => { const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light'); return (<div className="flex items-center justify-between"><span className="text-text-primary font-semibold">Mode Sombre</span><button onClick={toggleTheme} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-lavande-poudre focus:ring-offset-2 dark:focus:ring-offset-slate-800 ${theme === 'dark' ? 'bg-lavande-poudre' : 'bg-gray-200'}`}><span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${theme === 'dark' ? 'translate-x-5' : 'translate-x-0'}`}><span className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${theme === 'dark' ? 'opacity-0 duration-100 ease-out' : 'opacity-100 duration-200 ease-in'}`}><SunIcon className="h-3 w-3 text-gray-400" /></span><span className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${theme === 'dark' ? 'opacity-100 duration-200 ease-in' : 'opacity-0 duration-100 ease-out'}`}><MoonIcon className="h-3 w-3 text-lavande-poudre" /></span></span></button></div>); };
-const CreateProfileModal = ({ onCreate, onClose }) => { const [name, setName] = useState(''); const handleSubmit = (e) => { e.preventDefault(); if (name.trim()) onCreate(name.trim()); }; const isInvalid = !name.trim(); return (<form onSubmit={handleSubmit}><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom du profil" className="w-full px-4 py-3 border border-subtle-border bg-hover-bg text-text-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-lavande-poudre" autoFocus /><div className="flex justify-end space-x-4 mt-6"><button type="button" onClick={onClose} className="px-4 py-2 bg-hover-bg text-text-primary rounded-lg font-semibold hover:brightness-95 transition-colors">Annuler</button><Button type="submit" disabled={isInvalid}>Créer</Button></div></form>); };
+
 
 // --- STYLE INJECTION ---
 const StyleInjector = () => {
