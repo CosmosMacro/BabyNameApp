@@ -309,19 +309,25 @@ const AppLayout = () => {
     useEffect(() => {
         if (!user) return;
         setIsFriendsLoading(true);
-        const q = query(collection(db, "friendships"), where("userIds", "array-contains", user.uid));
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
-            const friendships = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        const friendshipsRef = collection(db, "friendships");
+        const qSent = query(friendshipsRef, where("requesterId", "==", user.uid));
+        const qReceived = query(friendshipsRef, where("receiverId", "==", user.uid));
+
+        const allFriendships = new Map();
+
+        const fetchUsers = async (uids) => {
+            if (uids.length === 0) return [];
+            const usersQuery = query(collection(db, 'users_public'), where('uid', 'in', uids));
+            const usersSnapshot = await getDocs(usersQuery);
+            return usersSnapshot.docs.map(doc => doc.data());
+        };
+
+        const processFriendships = async () => {
+            const friendships = Array.from(allFriendships.values());
             const accepted = friendships.filter(f => f.status === 'accepted');
             const pendingReceived = friendships.filter(f => f.status === 'pending' && f.receiverId === user.uid);
             const pendingSent = friendships.filter(f => f.status === 'pending' && f.requesterId === user.uid);
-
-            const fetchUsers = async (uids) => {
-                if (uids.length === 0) return [];
-                const usersQuery = query(collection(db, 'users_public'), where('uid', 'in', uids));
-                const usersSnapshot = await getDocs(usersQuery);
-                return usersSnapshot.docs.map(doc => doc.data());
-            };
 
             const friendIds = accepted.map(f => f.userIds.find(id => id !== user.uid)).filter(Boolean);
             setFriends(await fetchUsers(friendIds));
@@ -335,12 +341,32 @@ const AppLayout = () => {
             setSentRequests(pendingSent.map(req => ({ ...req, user: receiversData.find(u => u.uid === req.receiverId) })));
 
             setIsFriendsLoading(false);
-        }, (error) => {
-            console.error("Error listening to friendships:", error);
+        };
+
+        const handleSnapshot = (snapshot) => {
+            snapshot.docChanges().forEach(change => {
+                if (change.type === 'removed') {
+                    allFriendships.delete(change.doc.id);
+                } else {
+                    allFriendships.set(change.doc.id, { id: change.doc.id, ...change.doc.data() });
+                }
+            });
+            processFriendships();
+        };
+
+        const unsubscribeSent = onSnapshot(qSent, handleSnapshot, (error) => {
+            console.error("Error listening to sent friendships:", error);
+            setIsFriendsLoading(false);
+        });
+        const unsubscribeReceived = onSnapshot(qReceived, handleSnapshot, (error) => {
+            console.error("Error listening to received friendships:", error);
             setIsFriendsLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeSent();
+            unsubscribeReceived();
+        };
     }, [user]);
 
     const updateUserData = useCallback(async (updatedData, attempt = 0) => {
