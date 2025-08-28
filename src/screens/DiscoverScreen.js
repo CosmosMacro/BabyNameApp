@@ -1,11 +1,31 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AnimatedPage, Card, UndoIcon, FilterIcon, SwipeableCard } from '../App';
 import FilterScreen from './FilterScreen';
+import { storage } from '../storage';
 const DiscoverScreen = ({ profile, allNames, updateProfile, origins }) => {
     const [cardStack, setCardStack] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFilterOpen, setFilterOpen] = useState(false);
     const [filter, setFilter] = useState({ gender: 'Tous', origins: [], length: { type: 'Tous', min: 2, max: 15 } });
+
+    useEffect(() => {
+        const loadFilter = async () => {
+            const stored = await storage.getItem('name_app_filter_v1');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    setFilter(parsed);
+                } catch (e) {
+                    console.error('Failed to parse stored filter', e);
+                }
+            }
+        };
+        loadFilter();
+    }, []);
+
+    useEffect(() => {
+        storage.setItem('name_app_filter_v1', JSON.stringify(filter));
+    }, [filter]);
 
     const memoizedCardStack = useMemo(() => {
         if (allNames.length === 0 || !profile) return [];
