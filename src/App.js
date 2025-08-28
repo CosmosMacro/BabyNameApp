@@ -200,6 +200,7 @@ const AppLayout = () => {
     const [requests, setRequests] = useState([]);
     const [sentRequests, setSentRequests] = useState([]);
     const [isFriendsLoading, setIsFriendsLoading] = useState(true);
+    const [saveError, setSaveError] = useState(null);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -207,6 +208,13 @@ const AppLayout = () => {
         root.classList.add(theme);
         localStorage.setItem('name_app_theme_v2', theme);
     }, [theme]);
+
+    useEffect(() => {
+        if (saveError) {
+            const timer = setTimeout(() => setSaveError(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [saveError]);
 
     const uniqueOrigins = useMemo(() => {
         const set = new Set();
@@ -323,7 +331,7 @@ const AppLayout = () => {
         return () => unsubscribe();
     }, [user]);
 
-    const updateUserData = useCallback(async (updatedData) => {
+    const updateUserData = useCallback(async (updatedData, attempt = 0) => {
         if (!user) return;
         const batch = writeBatch(db);
         const userRef = doc(db, 'users', user.uid);
@@ -337,8 +345,13 @@ const AppLayout = () => {
         }
         try {
             await batch.commit();
+            setSaveError(null);
         } catch (error) {
             console.error("Error updating user data:", error);
+            setSaveError("Erreur lors de l'enregistrement des données.");
+            if (attempt < 1) {
+                setTimeout(() => updateUserData(updatedData, attempt + 1), 2000);
+            }
         }
     }, [user]);
 
@@ -390,6 +403,11 @@ const AppLayout = () => {
             <main className="flex-1 p-4 overflow-y-auto pb-28">
                 {renderPage()}
             </main>
+            {saveError && (
+                <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded shadow-lg z-50">
+                    {saveError}
+                </div>
+            )}
             <BottomNavBar currentPage={currentPage} onNavigate={handleNavigate} />
         </div>
     );
