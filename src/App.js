@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore';
 // --- CORRECTION DE L'IMPORT POUR LE PLUGIN SOCIAL LOGIN ---
 import { SocialLogin } from '@capgo/capacitor-social-login';
+import { storage } from './storage';
 
 
 // --- CONFIGURATION FIREBASE (REMPLIR AVEC VOS INFORMATIONS) ---
@@ -163,11 +164,10 @@ const pageTitles = {
     detail: 'Détail du Prénom',
 };
 
-const getInitialTheme = () => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-        const storedTheme = window.localStorage.getItem('name_app_theme_v2');
-        if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
-    }
+
+const getInitialTheme = async () => {
+    const storedTheme = await storage.getItem('name_app_theme_v2');
+    if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
     return 'light';
 };
 
@@ -193,7 +193,11 @@ const AppLayout = () => {
     const [userData, setUserData] = useState(null);
     const [currentPage, setCurrentPage] = useState('dashboard');
     const [detailedName, setDetailedName] = useState(null);
-    const [theme, setTheme] = useState(getInitialTheme);
+    const [theme, setTheme] = useState('light');
+
+    useEffect(() => {
+        getInitialTheme().then(setTheme);
+    }, []);
 
     // State for friends, requests, etc.
     const [friends, setFriends] = useState([]);
@@ -205,7 +209,7 @@ const AppLayout = () => {
         const root = window.document.documentElement;
         root.classList.remove(theme === 'dark' ? 'light' : 'dark');
         root.classList.add(theme);
-        localStorage.setItem('name_app_theme_v2', theme);
+        storage.setItem('name_app_theme_v2', theme);
     }, [theme]);
 
     const uniqueOrigins = useMemo(() => {
