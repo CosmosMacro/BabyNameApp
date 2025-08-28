@@ -1,6 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { AnimatedPage, Card, Button, LoadingSpinner, db } from '../App';
+import { AnimatedPage, Card, Button, LoadingSpinner, db, HeartIcon } from '../App';
+
+const CompareRow = ({ name, lastName, isLiked, onToggleLike }) => {
+    const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg';
+    return (
+        <div className={`flex justify-between items-center p-3 rounded-xl ${genderBg}`}>
+            <p className="font-semibold text-text-primary">
+                {name.prénom}
+                {lastName && (
+                    <span className="ml-2 font-normal text-text-secondary">{lastName}</span>
+                )}
+            </p>
+            <button onClick={() => onToggleLike(name.id)}>
+                <HeartIcon
+                    className={`w-7 h-7 transition-all duration-200 transform ${
+                        isLiked
+                            ? 'text-rose-saumon scale-100'
+                            : 'text-slate-300 dark:text-slate-500 scale-90 hover:text-rose-saumon/70 hover:scale-110'
+                    }`}
+                />
+            </button>
+        </div>
+    );
+};
+
 const CompareScreen = ({ profile, allNames, updateProfile, onNavigate, friends, isFriendsLoading }) => {
     const [selectedFriend, setSelectedFriend] = useState(null);
     const [friendData, setFriendData] = useState(null);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, updateDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, getDocs, query, where, collection, getDoc, setDoc } from 'firebase/firestore';
 import { AnimatedPage, Card, Button, Modal, LoadingSpinner, UserPlusIcon, TrashIcon, db } from '../App';
 const FriendsScreen = ({
     friends,
