@@ -569,7 +569,7 @@ const DiscoverScreen = ({ profile, allNames, updateProfile, origins }) => {
             return !profile.seenNames.includes(n.id) && genderMatch && originMatch && lengthMatch;
         });
         return [...potentialNames].sort(() => Math.random() - 0.5);
-    }, [filter, allNames, profile.id]);
+    }, [filter, allNames, profile.likedNames, profile.seenNames]);
 
     useEffect(() => { setCardStack(memoizedCardStack); setCurrentIndex(0); }, [memoizedCardStack]);
 
