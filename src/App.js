@@ -508,13 +508,49 @@ const AuthScreen = () => {
 // --- UI COMPONENTS ---
 const LoadingSpinner = ({ small }) => <div className={`border-solid rounded-full animate-spin border-slate-200 dark:border-slate-700 ${small ? 'w-6 h-6 border-2 border-t-white' : 'w-12 h-12 border-4 border-t-lavande-poudre'}`}></div>;
 const BackgroundDecorations = () => (<div className="fixed inset-0 z-[-1] opacity-40 dark:opacity-20 overflow-hidden"><svg className="absolute -top-12 -left-12 w-48 h-48 text-lavande-poudre/30" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M62.5,-49.9C77.9,-32.4,85.2,-4.4,80.7,20.5C76.2,45.4,59.9,67.2,39.8,78.5C19.7,89.8,-4.2,90.6,-28.4,80.5C-52.6,70.4,-77.1,49.4,-84.9,24.7C-92.7,0,-83.8,-28.3,-67.2,-46.5C-50.6,-64.7,-25.3,-72.7,-0.2,-72.6C24.9,-72.5,47.1,-67.4,62.5,-49.9Z" transform="translate(100 100)" /></svg><svg className="absolute -bottom-16 -right-12 w-64 h-64 text-rose-saumon/30" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M52.9,-62.9C67.9,-51.9,78.9,-35.8,82.1,-18.2C85.3,-0.6,80.7,18.5,70.4,34.9C60.1,51.3,44.1,65,26.8,72.2C9.5,79.4,-9.1,80.1,-26.8,74.5C-44.5,68.9,-61.2,57,-70.5,41.1C-79.8,25.2,-81.7,5.3,-77.4,-12.8C-73.1,-30.9,-62.6,-47.2,-48.5,-58.5C-34.4,-69.8,-17.2,-76.1,1.5,-77.5C20.2,-78.9,40.4,-73.9,52.9,-62.9Z" transform="translate(100 100)" /></svg></div>);
-const TopBar = ({ title, onAccountClick }) => (<header className="bg-card-bg/80 backdrop-blur-sm shadow-sm p-4 flex items-center justify-between relative flex-shrink-0 border-b border-subtle-border"><div className="w-8"></div><h1 className="text-xl font-bold text-text-primary">{title}</h1><button onClick={onAccountClick} className="p-2 rounded-full text-text-secondary hover:bg-lavande-poudre/10 hover:text-lavande-poudre transition-colors"><AccountIcon /></button></header>);
+const TopBar = ({ title, onAccountClick }) => (
+    <header className="bg-card-bg/80 backdrop-blur-sm shadow-sm p-4 flex items-center justify-between relative flex-shrink-0 border-b border-subtle-border">
+        <div className="w-8"></div>
+        <h1 className="text-xl font-bold text-text-primary">{title}</h1>
+        <button
+            onClick={onAccountClick}
+            aria-label="Ouvrir le compte"
+            className="p-2 rounded-full text-text-secondary hover:bg-lavande-poudre/10 hover:text-lavande-poudre transition-colors"
+        >
+            <AccountIcon />
+        </button>
+    </header>
+);
 const BottomNavBar = ({ currentPage, onNavigate }) => { const navItems = [{ page: 'dashboard', icon: HomeIcon, label: 'Cocon' }, { page: 'discover', icon: SearchIcon, label: 'Trouvailles' }, { page: 'favorites', icon: HeartIcon, label: 'Trésors' }, { page: 'friends', icon: UsersIcon, label: 'Amis' }, { page: 'compare', icon: CompareIcon, label: 'Comparer' },]; return (<nav className="fixed bottom-0 left-0 right-0 bg-card-bg/90 backdrop-blur-sm border-t border-subtle-border flex justify-around z-20 flex-shrink-0 p-2">{navItems.map(({ page, icon: Icon, label }) => { const isActive = currentPage === page; return (<button key={page} onClick={() => onNavigate(page)} className={`flex flex-col items-center p-2 w-full transition-all duration-300 rounded-lg ${isActive ? 'text-lavande-poudre' : 'text-text-secondary hover:bg-hover-bg'}`}><div className={`relative p-3 rounded-full transition-all duration-300 ${isActive ? 'bg-lavande-poudre/10' : ''}`}><Icon className={`h-6 w-6`} />{isActive && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-lavande-poudre rounded-full"></div>}</div><span className={`text-xs mt-1 font-semibold transition-all duration-300`}>{label}</span></button>) })} </nav>); };
 const Card = ({ children, className = '', ...props }) => <div className={`bg-card-bg rounded-3xl shadow-soft p-4 sm:p-6 ${className}`} {...props}>{children}</div>;
 const Button = ({ children, onClick, color = 'primary', className = '', disabled = false }) => { const colors = { primary: 'bg-lavande-poudre hover:brightness-105', red: 'bg-rose-saumon text-text-primary hover:brightness-105', emerald: 'bg-emerald-500 hover:bg-emerald-600', }; return <button onClick={onClick} disabled={disabled} className={`text-white font-bold py-3 px-6 rounded-xl shadow-sm transform transition-all duration-200 active:scale-95 ${colors[color]} ${className} disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed disabled:hover:scale-100`}>{children}</button>; };
 const Chip = ({ label, selected, onClick, className = '' }) => <button onClick={onClick} className={`px-4 py-2 rounded-full font-semibold transition-all duration-200 text-sm ${selected ? 'bg-lavande-poudre text-white shadow-sm' : 'bg-hover-bg text-text-secondary hover:brightness-95'} ${className}`}>{label}</button>;
-const FAB = ({ icon: Icon, onClick }) => (<button onClick={onClick} className="fixed bottom-24 right-6 bg-lavande-poudre text-white w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg z-30 transform transition-transform hover:scale-105 active:scale-95"><Icon className="h-8 w-8" /></button>);
-const Modal = ({ children, title, onClose }) => <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in-up"><div className="bg-card-bg p-6 rounded-2xl shadow-2xl w-full max-w-sm m-4"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-text-primary">{title}</h2><button onClick={onClose} className="text-text-secondary p-1 rounded-full hover:bg-hover-bg"><CloseIcon /></button></div>{children}</div></div>;
+const FAB = ({ icon: Icon, onClick, ariaLabel }) => (
+    <button
+        onClick={onClick}
+        aria-label={ariaLabel}
+        className="fixed bottom-24 right-6 bg-lavande-poudre text-white w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg z-30 transform transition-transform hover:scale-105 active:scale-95"
+    >
+        <Icon className="h-8 w-8" />
+    </button>
+);
+const Modal = ({ children, title, onClose }) => (
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in-up">
+        <div className="bg-card-bg p-6 rounded-2xl shadow-2xl w-full max-w-sm m-4">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-text-primary">{title}</h2>
+                <button
+                    onClick={onClose}
+                    aria-label="Fermer"
+                    className="text-text-secondary p-1 rounded-full hover:bg-hover-bg"
+                >
+                    <CloseIcon />
+                </button>
+            </div>
+            {children}
+        </div>
+    </div>
+);
 const AnimatedPage = ({ children, className }) => <div className={`animate-fade-in-up ${className}`}>{children}</div>;
 const AnimatedBackground = ({ theme }) => {
     const stars = useMemo(() => {
@@ -609,10 +645,19 @@ const DiscoverScreen = ({ profile, allNames, updateProfile, origins }) => {
     return (
         <AnimatedPage className="h-full flex flex-col">
             <div className="flex justify-end items-center space-x-3 mb-4">
-                <button onClick={handleUndo} className="p-3 bg-card-bg text-text-primary rounded-full shadow-soft disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-hover-bg" disabled={currentIndex === 0 || profile.history.length === 0}>
+                <button
+                    onClick={handleUndo}
+                    aria-label="Annuler le dernier choix"
+                    className="p-3 bg-card-bg text-text-primary rounded-full shadow-soft disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-hover-bg"
+                    disabled={currentIndex === 0 || profile.history.length === 0}
+                >
                     <UndoIcon />
                 </button>
-                <button onClick={() => setFilterOpen(true)} className="p-3 bg-card-bg text-text-primary rounded-full shadow-soft transition-all hover:bg-hover-bg">
+                <button
+                    onClick={() => setFilterOpen(true)}
+                    aria-label="Ouvrir les filtres"
+                    className="p-3 bg-card-bg text-text-primary rounded-full shadow-soft transition-all hover:bg-hover-bg"
+                >
                     <FilterIcon />
                 </button>
             </div>
@@ -939,7 +984,11 @@ const FriendsScreen = ({
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Button onClick={() => onNavigate('compare')} className="!py-2 !px-4">Comparer</Button>
-                                    <button onClick={() => removeFriend(friend.uid)} className="text-rose-saumon p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                                    <button
+                                        onClick={() => removeFriend(friend.uid)}
+                                        aria-label="Supprimer l'ami"
+                                        className="text-rose-saumon p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                    >
                                         <TrashIcon className="h-5 w-5" />
                                     </button>
                                 </div>
@@ -1048,12 +1097,93 @@ const SearchFriendModal = ({ onClose, currentUser, friends, onFriendRequestSent 
 
 
 
-const FilterScreen = ({ filter: current, origins, onSetFilter, onLaunch, allNames }) => { const handleOriginToggle = (origin) => { const newOrigins = [...current.origins]; const index = newOrigins.indexOf(origin); if (index > -1) { newOrigins.splice(index, 1); } else { newOrigins.push(origin); } onSetFilter({ ...current, origins: newOrigins }); }; const resetOrigins = () => { onSetFilter({ ...current, origins: [] }); }; const handleLengthTypeChange = (type) => { onSetFilter({ ...current, length: { ...current.length, type } }); }; const handleLengthRangeChange = ({ min, max }) => { onSetFilter({ ...current, length: { ...current.length, type: 'Personnalisé', min, max } }); }; const lengthTypes = [{ key: 'Tous', label: 'Toutes' }, { key: 'Court', label: 'Courts (3-4)' }, { key: 'Moyen', label: 'Moyens (5-6)' }, { key: 'Long', label: 'Longs (7+)' }, { key: 'Personnalisé', label: 'Personnalisé' },]; const filteredCount = useMemo(() => { if (!allNames) return 0; return allNames.filter(n => { const genderMatch = (current.gender === 'Tous' || n.genre === current.gender); const originMatch = (current.origins.length === 0 || (n.filtre_global && current.origins.includes(n.filtre_global))); const nameLength = n.prénom.length; const { type, min, max } = current.length; let lengthMatch = true; switch (type) { case 'Court': lengthMatch = nameLength >= 3 && nameLength <= 4; break; case 'Moyen': lengthMatch = nameLength >= 5 && nameLength <= 6; break; case 'Long': lengthMatch = nameLength >= 7; break; case 'Personnalisé': lengthMatch = nameLength >= min && nameLength <= max; break; default: lengthMatch = true; } return genderMatch && originMatch && lengthMatch; }).length; }, [allNames, current]); const totalCount = allNames.length; return (<> <AnimatedPage className="space-y-6 pb-24"> <Card> <h2 className="text-xl font-bold mb-4 text-text-primary">Genre</h2> <div className="flex justify-center space-x-2"> <Chip label="Garçon" selected={current.gender === 'M'} onClick={() => onSetFilter({ ...current, gender: 'M' })} /> <Chip label="Fille" selected={current.gender === 'F'} onClick={() => onSetFilter({ ...current, gender: 'F' })} /> <Chip label="Tous" selected={current.gender === 'Tous'} onClick={() => onSetFilter({ ...current, gender: 'Tous' })} /> </div> </Card> <Card> <div className="flex justify-between items-center mb-4"> <h2 className="text-xl font-bold text-text-primary">Origine(s) {current.origins.length > 0 ? `(${current.origins.length})` : ''}</h2> {current.origins.length > 0 && (<button onClick={resetOrigins} className="text-sm font-semibold text-lavande-poudre hover:underline">Tout désélectionner</button>)} </div> <div className="max-h-48 overflow-y-auto pr-2"> <div className="flex flex-wrap gap-2"> <Chip label="Toutes" selected={current.origins.length === 0} onClick={resetOrigins} /> {origins.map(origin => (<Chip key={origin} label={origin} selected={current.origins.includes(origin)} onClick={() => handleOriginToggle(origin)} />))} </div> </div> </Card> <Card> <h2 className="text-xl font-bold mb-4 text-text-primary">Longueur du prénom</h2> <div className="flex flex-wrap justify-center gap-2"> {lengthTypes.map(({ key, label }) => (<Chip key={key} label={label} selected={current.length.type === key} onClick={() => handleLengthTypeChange(key)} />))} </div> {current.length.type === 'Personnalisé' && (<div className="mt-6 animate-fade-in-up"> <RangeSlider min={2} max={15} currentMin={current.length.min} currentMax={current.length.max} onChange={handleLengthRangeChange} /> </div>)} </Card> <Card className="text-center mt-6 bg-card-bg/80 backdrop-blur-sm"> <p className="text-text-secondary text-sm sm:text-base"> <span className="font-bold text-text-primary">{filteredCount}</span> {filteredCount > 1 ? "prénoms correspondent" : "prénom correspond"} <br /> sur <span className="font-bold text-text-primary">{totalCount}</span> prénoms disponibles. </p> </Card> </AnimatedPage> <FAB icon={SearchIcon} onClick={onLaunch} /> </>); };
+const FilterScreen = ({ filter: current, origins, onSetFilter, onLaunch, allNames }) => { const handleOriginToggle = (origin) => { const newOrigins = [...current.origins]; const index = newOrigins.indexOf(origin); if (index > -1) { newOrigins.splice(index, 1); } else { newOrigins.push(origin); } onSetFilter({ ...current, origins: newOrigins }); }; const resetOrigins = () => { onSetFilter({ ...current, origins: [] }); }; const handleLengthTypeChange = (type) => { onSetFilter({ ...current, length: { ...current.length, type } }); }; const handleLengthRangeChange = ({ min, max }) => { onSetFilter({ ...current, length: { ...current.length, type: 'Personnalisé', min, max } }); }; const lengthTypes = [{ key: 'Tous', label: 'Toutes' }, { key: 'Court', label: 'Courts (3-4)' }, { key: 'Moyen', label: 'Moyens (5-6)' }, { key: 'Long', label: 'Longs (7+)' }, { key: 'Personnalisé', label: 'Personnalisé' },]; const filteredCount = useMemo(() => { if (!allNames) return 0; return allNames.filter(n => { const genderMatch = (current.gender === 'Tous' || n.genre === current.gender); const originMatch = (current.origins.length === 0 || (n.filtre_global && current.origins.includes(n.filtre_global))); const nameLength = n.prénom.length; const { type, min, max } = current.length; let lengthMatch = true; switch (type) { case 'Court': lengthMatch = nameLength >= 3 && nameLength <= 4; break; case 'Moyen': lengthMatch = nameLength >= 5 && nameLength <= 6; break; case 'Long': lengthMatch = nameLength >= 7; break; case 'Personnalisé': lengthMatch = nameLength >= min && nameLength <= max; break; default: lengthMatch = true; } return genderMatch && originMatch && lengthMatch; }).length; }, [allNames, current]); const totalCount = allNames.length; return (<> <AnimatedPage className="space-y-6 pb-24"> <Card> <h2 className="text-xl font-bold mb-4 text-text-primary">Genre</h2> <div className="flex justify-center space-x-2"> <Chip label="Garçon" selected={current.gender === 'M'} onClick={() => onSetFilter({ ...current, gender: 'M' })} /> <Chip label="Fille" selected={current.gender === 'F'} onClick={() => onSetFilter({ ...current, gender: 'F' })} /> <Chip label="Tous" selected={current.gender === 'Tous'} onClick={() => onSetFilter({ ...current, gender: 'Tous' })} /> </div> </Card> <Card> <div className="flex justify-between items-center mb-4"> <h2 className="text-xl font-bold text-text-primary">Origine(s) {current.origins.length > 0 ? `(${current.origins.length})` : ''}</h2> {current.origins.length > 0 && (<button onClick={resetOrigins} className="text-sm font-semibold text-lavande-poudre hover:underline">Tout désélectionner</button>)} </div> <div className="max-h-48 overflow-y-auto pr-2"> <div className="flex flex-wrap gap-2"> <Chip label="Toutes" selected={current.origins.length === 0} onClick={resetOrigins} /> {origins.map(origin => (<Chip key={origin} label={origin} selected={current.origins.includes(origin)} onClick={() => handleOriginToggle(origin)} />))} </div> </div> </Card> <Card> <h2 className="text-xl font-bold mb-4 text-text-primary">Longueur du prénom</h2> <div className="flex flex-wrap justify-center gap-2"> {lengthTypes.map(({ key, label }) => (<Chip key={key} label={label} selected={current.length.type === key} onClick={() => handleLengthTypeChange(key)} />))} </div> {current.length.type === 'Personnalisé' && (<div className="mt-6 animate-fade-in-up"> <RangeSlider min={2} max={15} currentMin={current.length.min} currentMax={current.length.max} onChange={handleLengthRangeChange} /> </div>)} </Card> <Card className="text-center mt-6 bg-card-bg/80 backdrop-blur-sm"> <p className="text-text-secondary text-sm sm:text-base"> <span className="font-bold text-text-primary">{filteredCount}</span> {filteredCount > 1 ? "prénoms correspondent" : "prénom correspond"} <br /> sur <span className="font-bold text-text-primary">{totalCount}</span> prénoms disponibles. </p> </Card> </AnimatedPage> <FAB icon={SearchIcon} onClick={onLaunch} ariaLabel="Appliquer les filtres" /> </>); };
 const SwipeableCard = ({ name, lastName, onSwipe, isTop, style }) => { const cardRef = useRef(); const nameRef = useRef(); const [feedback, setFeedback] = useState(null); const startPoint = useRef({ x: 0, y: 0 }); const isDragging = useRef(false); useEffect(() => { const resizeText = () => { const textEl = nameRef.current; const containerEl = textEl?.parentElement; if (!textEl || !containerEl) return; requestAnimationFrame(() => { const containerWidth = containerEl.offsetWidth; if (containerWidth <= 0) return; let fontSize = 64; textEl.style.fontSize = `${fontSize}px`; while (textEl.scrollWidth > containerWidth - 8 && fontSize > 16) { fontSize--; textEl.style.fontSize = `${fontSize}px`; } }); }; resizeText(); window.addEventListener('resize', resizeText); return () => { window.removeEventListener('resize', resizeText); }; }, [name.prénom, lastName]); const handleGestureStart = (e) => { if (!isTop) return; startPoint.current = { x: e.clientX ?? e.touches[0].clientX, y: e.clientY ?? e.touches[0].clientY }; isDragging.current = true; if (cardRef.current) { cardRef.current.style.transition = 'transform 0.1s'; } }; const handleGestureMove = (e) => { if (!isDragging.current || !isTop || !cardRef.current) return; const currentX = e.clientX ?? e.touches[0].clientX; const deltaX = currentX - startPoint.current.x; const rotation = deltaX / 20; cardRef.current.style.transform = `${style.transform} translateX(${deltaX}px) rotate(${rotation}deg)`; if (deltaX > 20) setFeedback('like'); else if (deltaX < -20) setFeedback('nope'); else setFeedback(null); }; const handleGestureEnd = (e) => { if (!isDragging.current || !isTop || !cardRef.current) return; isDragging.current = false; const deltaX = (e.clientX ?? e.changedTouches[0].clientX) - startPoint.current.x; if (Math.abs(deltaX) > 100) { const direction = deltaX > 0 ? 'right' : 'left'; const flyOutX = (deltaX > 0 ? 1 : -1) * (window.innerWidth); const rotation = deltaX / 15; cardRef.current.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out'; cardRef.current.style.transform = `translateX(${flyOutX}px) rotate(${rotation * 2}deg)`; cardRef.current.style.opacity = '0'; setTimeout(() => onSwipe(direction), 500); } else { cardRef.current.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'; cardRef.current.style.transform = style.transform; setFeedback(null); } }; const triggerSwipe = (direction) => { if (!isTop || !cardRef.current) return; const flyOutX = (direction === 'right' ? 1 : -1) * window.innerWidth; const rotation = direction === 'right' ? 15 : -15; setFeedback(direction === 'right' ? 'like' : 'nope'); cardRef.current.style.transition = 'transform 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.6s ease-out'; cardRef.current.style.transform = `translateX(${flyOutX}px) rotate(${rotation}deg)`; cardRef.current.style.opacity = '0'; setTimeout(() => onSwipe(direction), 600); }; const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<div ref={cardRef} className={`absolute touch-none ${isTop ? 'cursor-grab active:cursor-grabbing pointer-events-auto' : 'pointer-events-none'}`} style={style} onMouseDown={handleGestureStart} onMouseMove={handleGestureMove} onMouseUp={handleGestureEnd} onMouseLeave={handleGestureEnd} onTouchStart={handleGestureStart} onTouchMove={handleGestureMove} onTouchEnd={handleGestureEnd}><Card className={`w-80 h-[450px] flex flex-col justify-between items-center relative overflow-hidden border border-subtle-border ${genderBg}`}><div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${feedback === 'like' ? 'opacity-100' : 'opacity-0'}`}><div className="border-8 border-vert-menthe rounded-lg transform -rotate-12"><h3 className="text-vert-menthe text-4xl font-black p-2 tracking-widest">OUI !</h3></div></div><div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 pointer-events-none ${feedback === 'nope' ? 'opacity-100' : 'opacity-0'}`}><div className="border-8 border-rose-saumon rounded-lg transform rotate-12"><h3 className="text-rose-saumon text-4xl font-black p-2 tracking-widest">NON</h3></div></div><div className="text-center pt-8 px-4 overflow-hidden flex-grow flex flex-col w-full"><div className="w-full flex justify-center items-center h-28"><h2 ref={nameRef} className="font-bold text-text-primary leading-none whitespace-nowrap text-center">{name.prénom}{lastName && <span className="text-[0.8em] font-semibold ml-2 text-text-secondary">{lastName}</span>}</h2></div><div className="w-full flex-grow my-4 overflow-y-auto description-scroll pr-2"><p className="italic text-text-secondary text-base">"{name.signification}"</p></div></div><div className="w-full px-4 pb-4 flex-shrink-0"><div className="flex justify-center items-center mb-4"><div className="flex items-center space-x-2 text-text-secondary bg-card-bg/50 px-3 py-1 rounded-full border border-subtle-border">{name.genre === 'M' ? <MaleSymbolIcon className="h-4 w-4 text-bleu-layette" /> : <FemaleSymbolIcon className="h-4 w-4 text-rose-saumon" />}<p className="text-sm">Origine: {name.origines.join(', ')}</p></div></div><div className="flex justify-around w-full"><button onClick={() => triggerSwipe('left')} className="p-4 bg-card-bg rounded-full shadow-soft transform transition hover:scale-110 active:scale-95"><TrashIcon className="h-9 w-9 text-rose-saumon" /></button><button onClick={() => triggerSwipe('right')} className="p-4 bg-card-bg rounded-full shadow-soft transform transition hover:scale-110 active:scale-95"><HeartIcon className="h-9 w-9 text-vert-menthe" /></button></div></div></Card></div>); };
 const RangeSlider = ({ min, max, currentMin, currentMax, onChange }) => { const minValRef = useRef(currentMin); const maxValRef = useRef(currentMax); const range = useRef(null); const getPercent = useCallback((value) => Math.round(((value - min) / (max - min)) * 100), [min, max]); useEffect(() => { minValRef.current = currentMin; maxValRef.current = currentMax; }, [currentMin, currentMax]); useEffect(() => { const minPercent = getPercent(currentMin); const maxPercent = getPercent(currentMax); if (range.current) { range.current.style.left = `${minPercent}%`; range.current.style.width = `${maxPercent - minPercent}%`; } }, [currentMin, currentMax, getPercent]); return (<div className="w-full pt-4"> <div className="relative h-10 flex items-center justify-center"> <input type="range" min={min} max={max} value={currentMin} onChange={(event) => { const value = Math.min(Number(event.target.value), maxValRef.current - 1); onChange({ min: value, max: maxValRef.current }); }} className="thumb thumb--left" style={{ zIndex: currentMin > max - 100 ? '5' : '3' }} /> <input type="range" min={min} max={max} value={currentMax} onChange={(event) => { const value = Math.max(Number(event.target.value), minValRef.current + 1); onChange({ min: minValRef.current, max: value }); }} className="thumb thumb--right" /> <div className="relative w-full"> <div className="slider__track" /> <div ref={range} className="slider__range" /> <div className="slider__left-value">{currentMin}</div> <div className="slider__right-value">{currentMax}</div> </div> </div> <div className="flex justify-between text-xs text-text-secondary mt-2"> <span>{min} lettres</span> <span>{max} lettres</span> </div> </div>); };
-const FavoriteItem = ({ name, lastName, index, onRemove, onViewDetails, onDragStart, onDragOver, onDrop, onDragEnd, isBeingDragged }) => { const medalColors = ['#FFD700', '#C4C4C4', '#D9A77A']; const isTopThree = index < 3; const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<li draggable onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd} className={`favorite-item relative p-4 rounded-2xl shadow-soft flex items-center justify-between cursor-grab ${genderBg} ${isBeingDragged ? 'dragging' : ''}`}><div className="flex items-center space-x-3"><DragHandleIcon /><div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">{isTopThree && <TrophyIcon color={medalColors[index]} className="h-6 w-6" />}</div><p className="font-bold text-text-primary"><span className="text-lg">{name.prénom}</span>{lastName && <span className="text-base ml-2 text-text-secondary">{lastName}</span>}</p></div><div className="flex items-center space-x-2"><button onClick={() => onViewDetails(name)} className="text-text-secondary p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"><InfoIcon /></button><button onClick={() => onRemove(name.id)} className="text-rose-saumon p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"><TrashIcon className="h-5 w-5" /></button></div></li>); };
+const FavoriteItem = ({ name, lastName, index, onRemove, onViewDetails, onDragStart, onDragOver, onDrop, onDragEnd, isBeingDragged }) => {
+    const medalColors = ['#FFD700', '#C4C4C4', '#D9A77A'];
+    const isTopThree = index < 3;
+    const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg';
+
+    return (
+        <li
+            draggable
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            onDragEnd={onDragEnd}
+            className={`favorite-item relative p-4 rounded-2xl shadow-soft flex items-center justify-between cursor-grab ${genderBg} ${isBeingDragged ? 'dragging' : ''}`}
+        >
+            <div className="flex items-center space-x-3">
+                <DragHandleIcon />
+                <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                    {isTopThree && <TrophyIcon color={medalColors[index]} className="h-6 w-6" />}
+                </div>
+                <p className="font-bold text-text-primary">
+                    <span className="text-lg">{name.prénom}</span>
+                    {lastName && <span className="text-base ml-2 text-text-secondary">{lastName}</span>}
+                </p>
+            </div>
+            <div className="flex items-center space-x-2">
+                <button
+                    onClick={() => onViewDetails(name)}
+                    aria-label="Voir les détails du prénom"
+                    className="text-text-secondary p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                    <InfoIcon />
+                </button>
+                <button
+                    onClick={() => onRemove(name.id)}
+                    aria-label="Retirer le prénom de la liste"
+                    className="text-rose-saumon p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                    <TrashIcon className="h-5 w-5" />
+                </button>
+            </div>
+        </li>
+    );
+};
 const CompareRow = ({ name, lastName, isLiked, onToggleLike }) => { const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<div className={`flex justify-between items-center p-3 rounded-xl ${genderBg}`}><p className="font-semibold text-text-primary">{name.prénom}{lastName && <span className="ml-2 font-normal text-text-secondary">{lastName}</span>}</p><button onClick={() => onToggleLike(name.id)}><HeartIcon className={`w-7 h-7 transition-all duration-200 transform ${isLiked ? 'text-rose-saumon scale-100' : 'text-slate-300 dark:text-slate-500 scale-90 hover:text-rose-saumon/70 hover:scale-110'}`} /></button></div>); };
-const NameDetailScreen = ({ name, profile, updateProfile, onBack }) => { const isLiked = profile.likedNames.includes(name.id); const handleLike = () => { const currentLiked = new Set(profile.likedNames); if (currentLiked.has(name.id)) { currentLiked.delete(name.id); } else { currentLiked.add(name.id); } updateProfile({ likedNames: Array.from(currentLiked) }); }; const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg'; return (<AnimatedPage><button onClick={onBack} className="text-lavande-poudre font-semibold flex items-center space-x-2 group mb-4"><span className="transform transition-transform group-hover:-translate-x-1">&larr;</span><span>Retour</span></button><Card className={`text-center ${genderBg}`}><h1 className="text-6xl font-bold text-text-primary">{name.prénom}{profile.lastName && <span className="text-5xl ml-3 text-text-secondary">{profile.lastName}</span>}</h1><p className="italic text-text-secondary my-4 text-lg">"{name.signification}"</p><p className="text-text-secondary">Origine(s): {name.origines.join(', ')}</p><div className="flex justify-center items-center mt-8 pt-6 border-t border-subtle-border"><button onClick={handleLike}><HeartIcon isLiked={isLiked} className={`h-16 w-16 transition-all transform hover:scale-110 active:scale-100 ${isLiked ? 'text-rose-saumon' : 'text-slate-300 dark:text-slate-600'}`} /></button></div></Card></AnimatedPage>); };
+const NameDetailScreen = ({ name, profile, updateProfile, onBack }) => {
+    const isLiked = profile.likedNames.includes(name.id);
+    const handleLike = () => {
+        const currentLiked = new Set(profile.likedNames);
+        if (currentLiked.has(name.id)) {
+            currentLiked.delete(name.id);
+        } else {
+            currentLiked.add(name.id);
+        }
+        updateProfile({ likedNames: Array.from(currentLiked) });
+    };
+    const genderBg = name.genre === 'M' ? 'bg-bleu-layette-bg' : 'bg-rose-saumon-bg';
+    return (
+        <AnimatedPage>
+            <button onClick={onBack} className="text-lavande-poudre font-semibold flex items-center space-x-2 group mb-4">
+                <span className="transform transition-transform group-hover:-translate-x-1">&larr;</span>
+                <span>Retour</span>
+            </button>
+            <Card className={`text-center ${genderBg}`}>
+                <h1 className="text-6xl font-bold text-text-primary">
+                    {name.prénom}
+                    {profile.lastName && <span className="text-5xl ml-3 text-text-secondary">{profile.lastName}</span>}
+                </h1>
+                <p className="italic text-text-secondary my-4 text-lg">"{name.signification}"</p>
+                <p className="text-text-secondary">Origine(s): {name.origines.join(', ')}</p>
+                <div className="flex justify-center items-center mt-8 pt-6 border-t border-subtle-border">
+                    <button
+                        onClick={handleLike}
+                        aria-label={isLiked ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                    >
+                        <HeartIcon
+                            isLiked={isLiked}
+                            className={`h-16 w-16 transition-all transform hover:scale-110 active:scale-100 ${isLiked ? 'text-rose-saumon' : 'text-slate-300 dark:text-slate-600'}`}
+                        />
+                    </button>
+                </div>
+            </Card>
+        </AnimatedPage>
+    );
+};
 const ThemeToggle = ({ theme, setTheme }) => { const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light'); return (<div className="flex items-center justify-between"><span className="text-text-primary font-semibold">Mode Sombre</span><button onClick={toggleTheme} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-lavande-poudre focus:ring-offset-2 dark:focus:ring-offset-slate-800 ${theme === 'dark' ? 'bg-lavande-poudre' : 'bg-gray-200'}`}><span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${theme === 'dark' ? 'translate-x-5' : 'translate-x-0'}`}><span className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${theme === 'dark' ? 'opacity-0 duration-100 ease-out' : 'opacity-100 duration-200 ease-in'}`}><SunIcon className="h-3 w-3 text-gray-400" /></span><span className={`absolute inset-0 flex h-full w-full items-center justify-center transition-opacity ${theme === 'dark' ? 'opacity-100 duration-200 ease-in' : 'opacity-0 duration-100 ease-out'}`}><MoonIcon className="h-3 w-3 text-lavande-poudre" /></span></span></button></div>); };
 
 
