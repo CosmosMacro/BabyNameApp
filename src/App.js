@@ -242,7 +242,7 @@ const AppLayout = () => {
         const fetchNames = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('./base_prenoms_final.json');
+                const response = await fetch('./prenoms_enrichis.json');
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const jsonData = await response.json();
                 const parsedNames = jsonData.map(entry => ({
@@ -251,7 +251,10 @@ const AppLayout = () => {
                     signification: entry.signification,
                     origines: [entry.origine_detail].filter(o => o && o.trim() !== ''),
                     filtre_global: entry.filtre_global,
-                    id: entry.id
+                    id: entry.id,
+                    flags: entry.flags,
+                    alias_de: entry.alias_de,
+                    origine_normalisee: entry.origine_normalisee
                 }));
                 setAllNames(parsedNames);
             } catch (error) {
